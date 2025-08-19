@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  vfit2:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/data/media:/app/backend/data/media
+      - ./logs:/app/logs
+    environment:
+      - DJANGO_DEBUG=0
+      - DJANGO_ALLOWED_HOSTS=*
+      - BLENDER_BIN=/usr/local/bin/blender
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

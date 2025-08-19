@@ -1,0 +1,21 @@
+name: pix2surf_py39
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pytorch
+  - torchvision
+  - torchaudio
+  - cpuonly
+  - opencv
+  - pillow
+  - numpy
+  - scipy
+  - matplotlib
+  - pip
+  - pip:
+    - django>=4.0
+    - opencv-python-headless
+    - pathlib

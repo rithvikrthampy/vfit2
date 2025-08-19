@@ -1,0 +1,298 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>3D Model Viewer</title>
+  <style>
+    html, body { 
+      margin: 0; 
+      height: 100%; 
+      background: #0e1116; 
+      color: #ddd; 
+      font-family: system-ui, Arial; 
+      overflow: hidden;
+    }
+    
+    #app { 
+      width: 100%; 
+      height: 100%; 
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    #imageContainer {
+      position: relative;
+      max-width: 90%;
+      max-height: 80%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    #modelImage {
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      transition: opacity 0.1s ease;
+    }
+    
+    #controls {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.8);
+      padding: 20px;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      backdrop-filter: blur(10px);
+    }
+    
+    #rotationSlider {
+      width: 300px;
+      height: 6px;
+      border-radius: 3px;
+      background: #333;
+      outline: none;
+      appearance: none;
+    }
+    
+    #rotationSlider::-webkit-slider-thumb {
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #4af;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    
+    #rotationSlider::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #4af;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    
+    .control-label {
+      color: #ccc;
+      font-size: 14px;
+      text-align: center;
+    }
+    
+    #frameInfo {
+      color: #888;
+      font-size: 12px;
+    }
+    
+    .hud { 
+      position: fixed; 
+      top: 20px; 
+      left: 20px; 
+      font: 13px system-ui;
+      background: rgba(0,0,0,0.7);
+      padding: 10px;
+      border-radius: 8px;
+    }
+    
+    .back-link {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      color: #4af;
+      text-decoration: none;
+      font: 14px system-ui;
+      background: rgba(0,0,0,0.7);
+      padding: 10px 15px;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+    
+    .back-link:hover {
+      background: rgba(0,0,0,0.9);
+    }
+    
+    .error-message {
+      color: #fff;
+      text-align: center;
+      padding: 40px;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+    
+    .loading {
+      color: #4af;
+      text-align: center;
+      padding: 40px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="loading">Loading 3D model viewer...</div>
+  </div>
+  
+  <div class="hud">Drag slider to rotate • High-quality 3D preview</div>
+  <a href="/" class="back-link">← Back to Main</a>
+
+  <script>
+    // Get data from sessionStorage/localStorage
+    let cfg = JSON.parse(sessionStorage.getItem('viewer_data') || '{}');
+    
+    if (!cfg.frames || !cfg.frames.length) {
+      cfg = JSON.parse(localStorage.getItem('viewer_data') || '{}');
+    }
+    
+    if (!cfg.frames || !cfg.frames.length) {
+      document.getElementById('app').innerHTML = `
+        <div class="error-message">
+          <h2>No Model Data Found</h2>
+          <p>Please go back to the main page and run the processing first.</p>
+          <p>Make sure to wait for the processing to complete and generate frames.</p>
+        </div>
+      `;
+      throw new Error('No frames data found');
+    }
+
+    console.log('Frame-based viewer loaded with', cfg.frames.length, 'frames');
+
+    let currentFrame = 0;
+    const totalFrames = cfg.frames.length;
+    
+    // Create the viewer interface
+    const app = document.getElementById('app');
+    app.innerHTML = `
+      <div id="imageContainer">
+        <img id="modelImage" src="${cfg.frames[0]}" alt="3D Model Frame" />
+      </div>
+      
+      <div id="controls">
+        <div class="control-label">Rotate Model</div>
+        <input type="range" id="rotationSlider" min="0" max="${totalFrames - 1}" value="0" step="1" />
+        <div id="frameInfo">Frame 1 of ${totalFrames}</div>
+      </div>
+    `;
+
+    const modelImage = document.getElementById('modelImage');
+    const rotationSlider = document.getElementById('rotationSlider');
+    const frameInfo = document.getElementById('frameInfo');
+
+    // Preload all images for smooth transitions
+    const imageCache = {};
+    let loadedImages = 0;
+    
+    function preloadImages() {
+      cfg.frames.forEach((frameSrc, index) => {
+        const img = new Image();
+        img.onload = () => {
+          imageCache[index] = img;
+          loadedImages++;
+          if (loadedImages === totalFrames) {
+            console.log('All frames preloaded successfully');
+          }
+        };
+        img.onerror = () => {
+          console.error('Failed to load frame:', frameSrc);
+        };
+        img.src = frameSrc;
+      });
+    }
+
+    // Update the displayed frame
+    function updateFrame(frameIndex) {
+      if (frameIndex >= 0 && frameIndex < totalFrames) {
+        currentFrame = frameIndex;
+        
+        // Use cached image if available, otherwise use original src
+        if (imageCache[frameIndex]) {
+          modelImage.src = imageCache[frameIndex].src;
+        } else {
+          modelImage.src = cfg.frames[frameIndex];
+        }
+        
+        frameInfo.textContent = `Frame ${frameIndex + 1} of ${totalFrames}`;
+        rotationSlider.value = frameIndex;
+      }
+    }
+
+    // Handle slider input
+    rotationSlider.addEventListener('input', (e) => {
+      const frameIndex = parseInt(e.target.value);
+      updateFrame(frameIndex);
+    });
+
+    // Keyboard controls
+    document.addEventListener('keydown', (e) => {
+      switch(e.key) {
+        case 'ArrowLeft':
+          e.preventDefault();
+          updateFrame(Math.max(0, currentFrame - 1));
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          updateFrame(Math.min(totalFrames - 1, currentFrame + 1));
+          break;
+        case 'Home':
+          e.preventDefault();
+          updateFrame(0);
+          break;
+        case 'End':
+          e.preventDefault();
+          updateFrame(totalFrames - 1);
+          break;
+      }
+    });
+
+    // Auto-rotation mode (optional)
+    let autoRotate = false;
+    let autoRotateInterval;
+
+    function startAutoRotate() {
+      if (autoRotateInterval) clearInterval(autoRotateInterval);
+      autoRotateInterval = setInterval(() => {
+        if (autoRotate) {
+          const nextFrame = (currentFrame + 1) % totalFrames;
+          updateFrame(nextFrame);
+        }
+      }, 150);
+    }
+
+    // Double-click to toggle auto-rotation
+    modelImage.addEventListener('dblclick', () => {
+      autoRotate = !autoRotate;
+      if (autoRotate) {
+        console.log('Auto-rotation enabled');
+        startAutoRotate();
+      } else {
+        console.log('Auto-rotation disabled');
+        clearInterval(autoRotateInterval);
+      }
+    });
+
+    // Handle image load errors
+    modelImage.addEventListener('error', () => {
+      console.error('Failed to load frame:', cfg.frames[currentFrame]);
+      frameInfo.textContent = `Error loading frame ${currentFrame + 1}`;
+    });
+
+    // Start preloading images
+    preloadImages();
+    
+    // Initialize
+    updateFrame(0);
+    
+    console.log('Frame-based 3D viewer initialized');
+    console.log('Controls: Slider, Arrow keys, Double-click for auto-rotation');
+  </script>
+</body>
+</html>
