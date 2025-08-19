@@ -89,11 +89,6 @@
       text-align: center;
     }
     
-    #frameInfo {
-      color: #888;
-      font-size: 12px;
-    }
-    
     .hud { 
       position: fixed; 
       top: 20px; 
@@ -142,7 +137,7 @@
     <div class="loading">Loading 3D model viewer...</div>
   </div>
   
-  <div class="hud">Drag slider to rotate • High-quality 3D preview</div>
+  <div class="hud">Drag slider to rotate</div>
   <a href="/" class="back-link">← Back to Main</a>
 
   <script>
@@ -179,13 +174,11 @@
       <div id="controls">
         <div class="control-label">Rotate Model</div>
         <input type="range" id="rotationSlider" min="0" max="${totalFrames - 1}" value="0" step="1" />
-        <div id="frameInfo">Frame 1 of ${totalFrames}</div>
       </div>
     `;
 
     const modelImage = document.getElementById('modelImage');
     const rotationSlider = document.getElementById('rotationSlider');
-    const frameInfo = document.getElementById('frameInfo');
 
     // Preload all images for smooth transitions
     const imageCache = {};
@@ -220,7 +213,6 @@
           modelImage.src = cfg.frames[frameIndex];
         }
         
-        frameInfo.textContent = `Frame ${frameIndex + 1} of ${totalFrames}`;
         rotationSlider.value = frameIndex;
       }
     }
@@ -282,7 +274,6 @@
     // Handle image load errors
     modelImage.addEventListener('error', () => {
       console.error('Failed to load frame:', cfg.frames[currentFrame]);
-      frameInfo.textContent = `Error loading frame ${currentFrame + 1}`;
     });
 
     // Start preloading images
